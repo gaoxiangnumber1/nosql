@@ -37,12 +37,9 @@ typedef struct HashTable
 typedef struct HashTableType
 {
 	unsigned int (*HashFunction) (const void *key); // Calculate hash value.
-
 	int (*KeyCompare) (void *argument, const void *key1, const void *key2); // Compare keys.
-
 	void* (*KeyDuplicate) (void *argument, const void *key); // Duplicate key.
 	void* (*ValueDuplicate) (void *argument, const void *value); // Duplicate value.
-
 	void (*KeyDestructor) (void *argument, void *key); // Destruct key.
 	void (*ValueDestructor) (void *argument, void *value); // Destruct value.
 } HashTableType;
@@ -77,5 +74,15 @@ node->key_ = (((dictionary)->type_->KeyDuplicate) ? \
 node->union_value_.value_ = (((dictionary)->type_->ValueDuplicate) ? \
                              (dictionary)->type_->ValueDuplicate((dictionary)->argument_, value) : \
                              (value))
+// Free the node's key memory by KeyDestructor().
+#define DictionaryFreeKey(dictionary, node) \
+if ((dictionary)->type_->KeyDestructor) \
+	(dictionary)->type_->KeyDestructor((dictionary)->argument_, (node)->key_)
+// Free the node's value memory by ValueDestructor().
+#define DictionaryFreeValue(dictionary, node) \
+if ((dictionary)->type_->ValueDestructor) \
+	(dictionary)->type_->ValueDestructor((dictionary)->argument_, (node)->union_value_.value_)
+// Get specified element's(node's) value. Usually after called DictionaryFind().
+#define DictionaryGetElementValue(element) ((element)->union_value_.value_)
 
 #endif // NOSQL_SRC_HASH_TABLE_H_
