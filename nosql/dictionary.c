@@ -1,6 +1,11 @@
-#include "dictionary.h"
+#include <dictionary.h>
 
-#include "memory.h"
+#include <assert.h>
+#include <limits.h>
+
+#include <memory.h>
+
+#define NULL (void*)0
 
 // We can use DictionaryEnableResize() or DictionaryDisableResize() to enable/disable
 // resizing of the hash table. This is important as we use COW and don't want to move
@@ -13,7 +18,7 @@
 static int dictionary_can_resize = 1; // Indicate whether we are allowed to resize the hash table.
 // The safe threshold for the ratio between elements/bucket. When the actual ratio
 // is over this threshold, we force resize.
-static unsigned int dictionary_force_resize_ratio = 5;
+static int dictionary_force_resize_ratio = 5;
 
 // Enable resizing of the hash table.
 // O(1)
@@ -42,7 +47,7 @@ void DictionaryResetHashTable(HashTable *hash_table)
 Dictionary *DictionaryCreate(HashTableType *type, void *argument)
 {
 	// Allocate memory only for Dictionary structure.
-	Dictionary *dictionary = Malloc(sizeof(Dictionary));
+	Dictionary *dictionary = Malloc(CAST(int)sizeof(Dictionary));
 	// Initialize two hash tables without allocating memory. Allocate memory for them
 	// when the first time call DictionaryExpandIfNeeded().
 	DictionaryResetHashTable(&dictionary->hash_table_[0]);
@@ -61,7 +66,7 @@ Dictionary *DictionaryCreate(HashTableType *type, void *argument)
 // as we use chaining, from the old to the new hash table.
 // Since part of the hash table may be composed of empty slots, so we allow visiting
 // empty slot for at most rehash_count*10 times, otherwise the amount of work
-// it does would be unbound and the function may block for a long time.
+// it does would be unbound and the function may block for a int time.
 // O(N)
 int DictionaryRehash(Dictionary *dictionary, int rehash_count)
 {
@@ -78,7 +83,7 @@ int DictionaryRehash(Dictionary *dictionary, int rehash_count)
 	while(rehash_count-- && first_hash_table->element_number_ != 0)
 	{
 		// Make sure rehash_index_ can't overflow.
-		assert((unsigned)dictionary->rehash_index_ < first_hash_table->size_);
+		assert(dictionary->rehash_index_ < first_hash_table->size_);
 		// Empty slots don't need rehash.
 		while(first_hash_table->slot_[dictionary->rehash_index_] == NULL)
 		{
@@ -92,11 +97,12 @@ int DictionaryRehash(Dictionary *dictionary, int rehash_count)
 		// Rehash all the keys in this slot to the second hash table.
 		HashTableNode *current_node = first_hash_table->slot_[dictionary->rehash_index_];
 		HashTableNode *next_node = NULL;
-		unsigned int new_slot_index = 0;
+		int new_slot_index = 0;
+		new_slot_index += 0; // No warning, please.
 		while(current_node != NULL)
 		{
 			next_node = current_node->next_; // Store next hash table node.
-			new_slot_index = DictionaryHashKey(dictionary, current_node->key)
+			new_slot_index = DictionaryHashKey(dictionary, current_node->key_)
 			                 & second_hash_table->size_mask_;
 
 			// Add this node to the head of corresponding slot's head.
@@ -140,7 +146,7 @@ int DictionaryRehash(Dictionary *dictionary, int rehash_count)
 // O(1)
 void DictionaryRehashStep(Dictionary *dictionary)
 {
-	if(dictionary->iterator_count_ == 0)
+	if(dictionary->iterator_number_ == 0)
 	{
 		DictionaryRehash(dictionary, 1);
 	}
@@ -148,13 +154,13 @@ void DictionaryRehashStep(Dictionary *dictionary)
 
 // Return the first number that is a power of 2 and is greater than or equal to size.
 // O(1)
-static unsigned long DictionaryNextPower(unsigned long size)
+static int DictionaryNextPower(const int size)
 {
-	if(size >= LONG_MAX) // LONG_MAX defined in <limits.h>
+	if(size >= INT_MAX) // INT_MAX defined in <limits.h>
 	{
-		return LONG_MAX;
+		return INT_MAX;
 	}
-	unsigned long real_size = DICTIONARY_HASH_TABLE_INITIAL_SIZE; // 4
+	int real_size = DICTIONARY_HASH_TABLE_INITIAL_SIZE; // 4
 	for(;;)
 	{
 		if(real_size >= size)
@@ -167,16 +173,17 @@ static unsigned long DictionaryNextPower(unsigned long size)
 
 // Create(when dictionary is empty) or Expand the hash table.
 // O(1)
-int DictionaryExpand(Dictionary *dictionary, unsigned long size)
+int DictionaryExpand(Dictionary *dictionary, const int size)
 {
 	// real_length is the first number that is a power of 2 and is greater than or equal to length.
-	unsigned long real_size = DictionaryNextPower(size);
+	int real_size = DictionaryNextPower(size);
 	// 1. Exclude the conditions that we can't expand the hash table.
 	// When at least one of the following condition satisfy, expand is rejected:
 	// (1). In the process of rehashing(since we should expand/shrink before rehashing).
 	// (2). The specified size is less than the number of elements already in hash table.
 	// (3). The real expand size is equal to the current size(legal but useless).
-	if(DictionaryIsRehashing(dictionary) || dictionary->element_number_ > size ||
+	if(DictionaryIsRehashing(dictionary) ||
+	        dictionary->hash_table_[0].element_number_ > size ||
 	        real_size == dictionary->hash_table_[0].size_)
 	{
 		return DICTIONARY_ERROR;
@@ -184,7 +191,7 @@ int DictionaryExpand(Dictionary *dictionary, unsigned long size)
 	// 2. Allocate the new hash table and initialize all pointers to NULL.
 	HashTable new_hash_table;
 	// This hash table has real_size slots.
-	new_hash_table.slot_ = Calloc(real_size * sizeof(HashTableNode*));
+	new_hash_table.slot_ = Calloc(real_size * CAST(int)sizeof(HashTableNode*));
 	new_hash_table.size_ = real_size;
 	new_hash_table.size_mask_ = real_size - 1;
 	new_hash_table.element_number_ = 0;
@@ -249,13 +256,13 @@ static int DictionaryKeyIndex(Dictionary *dictionary, const void *key)
 	// we want to add elements.
 
 	// 1. Expand the hash table if needed since we want to add new key-value pair.
-	if(DictionaryExpandIfNeeded(dictionary) == DICTINOARY_ERROR)
+	if(DictionaryExpandIfNeeded(dictionary) == DICTIONARY_ERROR)
 	{
 		return -1;
 	}
 
 	// 2. Calculate the hash value of key.
-	unsigned int hash_value = DictionaryHashKey(dictionary, key), slot_index = 0;
+	int hash_value = DictionaryHashKey(dictionary, key), slot_index = 0;
 
 	// 3.	Calculate the slot index that should added to and check whether the same key
 	//		already exists in target hash table.
@@ -266,7 +273,7 @@ static int DictionaryKeyIndex(Dictionary *dictionary, const void *key)
 	HashTableNode *node = dictionary->hash_table_[index].slot_[slot_index];
 	while(node) // If the target slot is not empty, check if there is the same key.
 	{
-		if(DictionaryCompareKeys(dictionary, key, node->key))
+		if(DictionaryCompareKeys(dictionary, key, node->key_))
 		{
 			// The same key(compared by KeyCompare(), if any, or ==) already exists.
 			// Dictionary allows two different keys that have the same hash value
@@ -286,7 +293,7 @@ static int DictionaryKeyIndex(Dictionary *dictionary, const void *key)
 //    if (node != NULL) DictionarySetSignedIntegerVal(node, 1000);
 // Return: NULL if key already exists; otherwise return the hash node's pointer.
 // O(1)
-HashTableNode *DictionaryAddRaw(Dictionary *dictionary, void *key)
+HashTableNode *DictionaryAddRaw(Dictionary *dictionary, const void *key)
 {
 	// 1.	Check whether is in the process of incremental rehashing.
 	//		If so, perform a step of incremental rehashing.
@@ -314,7 +321,7 @@ HashTableNode *DictionaryAddRaw(Dictionary *dictionary, void *key)
 	                        &dictionary->hash_table_[1] : &dictionary->hash_table_[0];
 	HashTableNode *node = Malloc(sizeof(HashTableNode)); // Get new node.
 	// Initialize node member: key_, next_. Don't set value_ field, see notes above.
-	DictionarySetKey(dictionary, node, key);
+	DictionarySetKey(dictionary, node, CAST(void*)key);
 	// Add new node to the head of corresponding slot in hash table. O(1)
 	node->next_ = hash_table->slot_[slot_index];
 	hash_table->slot_[slot_index] = node;
@@ -327,7 +334,7 @@ HashTableNode *DictionaryAddRaw(Dictionary *dictionary, void *key)
 
 // Add a pair of key-value to dictionary.
 // O(1)
-int DictionaryAdd(Dictionary *dictionary, void *key, void *value)
+int DictionaryAdd(Dictionary *dictionary, const void *key, const void *value)
 {
 	// 1. Get the added node's pointer by DictionaryAddRaw.
 	HashTableNode *node = DictionaryAddRaw(dictionary, key);
@@ -336,7 +343,7 @@ int DictionaryAdd(Dictionary *dictionary, void *key, void *value)
 		return DICTIONARY_ERROR;
 	}
 	// 2. Set node's value as user wishes by DictionarySetValue.
-	DictionarySetValue(dictionary, node, value);
+	DictionarySetValue(dictionary, node, CAST(void*)value);
 	return DICTIONARY_SUCCESS;
 }
 
@@ -357,10 +364,10 @@ HashTableNode *DictionaryFind(Dictionary *dictionary, const void *key)
 	}
 
 	// 3. Find the node in dictionary whose key matches the specified key.
-	unsigned int hash_value = DictionaryHashKey(dictionary, key);
+	int hash_value = DictionaryHashKey(dictionary, key);
 	for(int index = 0; index <= 1; ++index)
 	{
-		unsigned int slot_index = hash_value & dictionary->hash_table_[index].size_mask_;
+		int slot_index = hash_value & dictionary->hash_table_[index].size_mask_;
 		HashTableNode *node = dictionary->hash_table_[index].slot_[slot_index];
 		while(node)
 		{
@@ -386,7 +393,7 @@ HashTableNode *DictionaryFind(Dictionary *dictionary, const void *key)
 // Add a new key-value pair if the key doesn't exist in dictionary yet;
 // otherwise replace current value with argument value.
 // Return 1 if the new key-value pair is added; 0 if only replace value.
-int DictionaryReplace(Dictionary *dictionary, void *key, void *value)
+int DictionaryReplace(Dictionary *dictionary, const void *key, const void *value)
 {
 	// 1. Try to add the key-value pair into dictionary.
 	if(DictionaryAdd(dictionary, key, value) == DICTIONARY_SUCCESS)
@@ -406,13 +413,13 @@ int DictionaryReplace(Dictionary *dictionary, void *key, void *value)
 	HashTableNode old_node_copy = *node_ptr;
 	// Set the new value and free the old one. We must do that in this order, as the value
 	// may be the same as the previous one(Self-Assignment case).
-	DictionarySetValue(dictionary, node_ptr, value);
+	DictionarySetValue(dictionary, node_ptr, CAST(void*)value);
 	DictionaryFreeValue(dictionary, &old_node_copy);
 	return 0;
 }
 
 // Get the value of element whose key matches the supplied key.
-void DictionaryGetValue(Dictionary *dictionary, const void *key)
+void *DictionaryGetValue(Dictionary *dictionary, const void *key)
 {
 	HashTableNode *node = DictionaryFind(dictionary, key);
 	return node ? DictionaryGetElementValue(node) : NULL;
@@ -420,12 +427,12 @@ void DictionaryGetValue(Dictionary *dictionary, const void *key)
 
 // Return SUCCESS if delete the node whose key matches the argument key,
 // ERROR if can't find.
-static int DictionaryGenericDelete(Dictionary *dictionary, const void *key, int no_free)
+static int DictionaryGenericDelete(Dictionary *dictionary, const void *key, const int no_free)
 {
-	// 1. Check if dictionary has elements. If not, return NULL directly.
+	// 1. Check if dictionary has elements. If not, return ERROR directly.
 	if(dictionary->hash_table_[0].size_ == 0)
 	{
-		return NULL;
+		return DICTIONARY_ERROR;
 	}
 
 	// 2. Always try to perform one step of incremental rehash before actual operation.
@@ -435,10 +442,10 @@ static int DictionaryGenericDelete(Dictionary *dictionary, const void *key, int 
 	}
 
 	// 3. Find the node in dictionary whose key matches the specified key.
-	unsigned int hash_value = DictionaryHashKey(dictionary, key);
+	int hash_value = DictionaryHashKey(dictionary, key);
 	for(int index = 0; index <= 1; ++index)
 	{
-		unsigned int slot_index = hash_value & dictionary->hash_table_[index].size_mask_;
+		int slot_index = hash_value & dictionary->hash_table_[index].size_mask_;
 		HashTableNode *previous_node = NULL;
 		HashTableNode *node = dictionary->hash_table_[index].slot_[slot_index];
 		while(node)
@@ -478,11 +485,13 @@ static int DictionaryGenericDelete(Dictionary *dictionary, const void *key, int 
 	return DICTIONARY_ERROR;
 }
 
+// Delete specified key-value pair in the dictionary.
 int DictionaryDelete(Dictionary *dictionary, const void *key)
 {
 	return DictionaryGenericDelete(dictionary, key, 0);
 }
 
+// Delete specified key-value pair in the dictionary, not free its key and value.
 int DictionaryDeleteNoFree(Dictionary *dictionary, const void *key)
 {
 	return DictionaryGenericDelete(dictionary, key, 1);
@@ -492,7 +501,7 @@ int DictionaryDeleteNoFree(Dictionary *dictionary, const void *key)
 void DictionaryClear(Dictionary *dictionary, HashTable *hash_table, void (callback)(void*))
 {
 	HashTableNode *node = NULL, *next_node = NULL;
-	for(unsigned long index = 0;
+	for(int index = 0;
 	        index < hash_table->size_ && hash_table->element_number_ > 0; ++index)
 	{
 		if(callback && (index & 65535) == 0) // TODO: What use?
@@ -524,4 +533,3 @@ void DictionaryRelease(Dictionary *dictionary)
 	DictionaryClear(dictionary, &dictionary->hash_table_[1], NULL);
 	Free(dictionary);
 }
-
