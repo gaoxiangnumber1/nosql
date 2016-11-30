@@ -1,6 +1,10 @@
 #ifndef NOSQL_SRC_DOUBLE_LINKED_LIST_H_
 #define NOSQL_SRC_DOUBLE_LINKED_LIST_H_
 
+#ifndef CAST
+#define CAST(type) (type)
+#endif
+
 typedef struct ListNode
 {
 	struct ListNode *previous_;
@@ -21,10 +25,10 @@ typedef struct List
 {
 	ListNode *head_; // The first node in this linked list.
 	ListNode *tail_; // The last node.
-	unsigned long length_; // The number of nodes in this list.
-	void* (*Duplicate) (void*); // ListDuplicate(List*)
+	int length_; // The number of nodes in this list.
+	void* (*Duplicate) (const void*); // ListDuplicate(List*)
 	void* (*Free) (void*); // ListFree(List*); ListDeleteNode(List*, ListNode*)
-	void* (*Match) (void*, void*); // ListSearchKey(List*, void*)
+	void* (*Match) (const void*, const void*); // ListSearchKey(List*, void*)
 } List;
 
 // Functions implemented as macros.
@@ -46,11 +50,11 @@ List *ListCreate();
 // Free the whole list(including all its nodes) memory.
 void ListFree(List *list);
 // Create a new node whose value_ is value and add it to the head of list.
-List *ListAddHeadNode(List *list, void *value);
+List *ListAddHeadNode(List *list, const void *value);
 // Create a new node whose value_ is value and add it to the tail of list.
-List *ListAddTailNode(List *list, void *value);
+List *ListAddTailNode(List *list, const void *value);
 // Create a new node whose value_ is value and insert it to the list according to after.
-List *ListInsertNode(List *list, ListNode *old_node, void *value, int after);
+List *ListInsertNode(List *list, ListNode *old_node, const void *value, int after);
 // Return a list iterator. ListNextNode(iterator) return the next element of the list.
 ListIterator *ListGetIterator(List *list, int direction);
 // Return a pointer to the next element of an iterator.
@@ -58,9 +62,9 @@ ListNode *ListNextIterateNode(ListIterator *iterator);
 // Free the iterator memory.
 void ListFreeIterator(ListIterator *iterator);
 // Return a pointer to the node that matches the given key.
-ListNode *ListSearchKey(List *list, void *key);
+ListNode *ListSearchKey(List *list, const void *key);
 // Return list[index] where 0 is the head, 1 is the element next to head and so on.
-ListNode *ListIndex(List *list, long index);
+ListNode *ListIndex(List *list, int index);
 // Remove the specified node from the specified list.
 void ListDeleteNode(List *list, ListNode *node);
 // Rotate the list removing the tail node and inserting it to the head.

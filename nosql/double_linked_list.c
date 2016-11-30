@@ -1,23 +1,21 @@
-#include "double_linked_list.h"
+#include <double_linked_list.h>
 
 #include <stdio.h>
 
-#include "memory.h"
-
-//#define NULL 0
+#include <memory.h>
 
 // Create a new double linked list and return the pointer to it.
 // O(1)
 List *ListCreate()
 {
-	return Calloc(sizeof(List)); // Calloc initialize all allocated memory to 0.
+	return Calloc(CAST(int)sizeof(List)); // Calloc initialize all allocated memory to 0.
 }
 
 // Free the whole list(including all its nodes) memory.
 // O(N)
 void ListFree(List *list)
 {
-	unsigned long length = list->length_;
+	int length = list->length_;
 	ListNode *current_node = list->head_, *next_node = NULL;
 	while(length--)
 	{
@@ -31,14 +29,14 @@ void ListFree(List *list)
 
 // Create a new node whose value_ is value and add it to the head of list.
 //O(1)
-List *ListAddHeadNode(List *list, void *value)
+List *ListAddHeadNode(List *list, const void *value)
 {
 	ListNode *node;
-	if((node = Malloc(sizeof(ListNode))) == NULL)
+	if((node = Malloc(CAST(int)sizeof(ListNode))) == NULL)
 	{
 		return NULL;
 	}
-	node->value_ = value;
+	node->value_ = CAST(void*)value;
 	if(list->length_ == 0) // Empty list.
 	{
 		node->previous_ = node->next_ = NULL;
@@ -57,14 +55,14 @@ List *ListAddHeadNode(List *list, void *value)
 
 // Create a new node whose value_ is value and add it to the tail of list.
 //O(1)
-List *ListAddTailNode(List *list, void *value)
+List *ListAddTailNode(List *list, const void *value)
 {
 	ListNode *node;
-	if((node = Malloc(sizeof(ListNode))) == NULL)
+	if((node = Malloc(CAST(int)sizeof(ListNode))) == NULL)
 	{
 		return NULL;
 	}
-	node->value_ = value;
+	node->value_ = CAST(void*)value;
 	if(list->length_ == 0) // Empty list.
 	{
 		node->previous_ = node->next_ = NULL;
@@ -84,14 +82,14 @@ List *ListAddTailNode(List *list, void *value)
 // Create a new node whose value_ is value and insert it to the list according to after:
 // insert before old_node if after == 0; otherwise, insert after old_node.
 //O(1)
-List *ListInsertNode(List *list, ListNode *old_node, void *value, int after)
+List *ListInsertNode(List *list, ListNode *old_node, const void *value, int after)
 {
 	ListNode *new_node;
-	if((new_node = Malloc(sizeof(ListNode))) == NULL)
+	if((new_node = Malloc(CAST(int)sizeof(ListNode))) == NULL)
 	{
 		return NULL;
 	}
-	new_node->value_ = value;
+	new_node->value_ = CAST(void*)value;
 	// Set new node's previous and next links according to after.
 	new_node->previous_ = (after == 0 ? old_node->previous_ : old_node);
 	new_node->next_ = (after == 0 ? old_node : old_node->next_);
@@ -129,7 +127,7 @@ List *ListInsertNode(List *list, ListNode *old_node, void *value, int after)
 ListIterator *ListGetIterator(List *list, int direction)
 {
 	ListIterator *iterator;
-	if((iterator = Malloc(sizeof(ListIterator))) == NULL)
+	if((iterator = Malloc(CAST(int)sizeof(ListIterator))) == NULL)
 	{
 		return NULL;
 	}
@@ -162,7 +160,7 @@ void ListFreeIterator(ListIterator *iterator)
 // Return a pointer to the node that matches the given key.
 // Use the Match method if present, otherwise compare by =.
 //O(N)
-ListNode *ListSearchKey(List *list, void *key)
+ListNode *ListSearchKey(List *list, const void *key)
 {
 	ListIterator *iterator = ListGetIterator(list, FROM_HEAD_TO_TAIL);
 	ListNode *node;
@@ -184,7 +182,7 @@ ListNode *ListSearchKey(List *list, void *key)
 
 // Return list[index] where 0 is the head, 1 is the element next to head and so on.
 // O(N)
-ListNode *ListIndex(List *list, long index)
+ListNode *ListIndex(List *list, int index)
 {
 	ListNode *node = NULL;
 	if(0 <= index && index <= list->length_) // In legal range.
