@@ -1,25 +1,18 @@
-#include "simple_dynamic_string.h"
+#include <simple_dynamic_string.h>
 
-#include <string.h> // strlen(), memcpy(), memset(), memmove(), memcmp()
+#include <string.h> // memcpy(), memset(), memmove(), memcmp()
 
-#include "memory.h"
+#include <memory.h>
 
 // Create a new SDS string with the data specified by the 'string' pointer and 'length'.
 // O(N)
-String SDSNewLength(const void *string, size_t length)
+String SDSNewLength(const void *string, int length)
 {
-	SDS *sds = NULL;
-	if(string != NULL)
-	{
-		// One more byte is allocated for the null-terminated byte '\0'.
-		// Malloc does not initialize the memory.
-		sds = Malloc(sizeof(SDS) + length + 1);
-	}
-	else
-	{
-		// string is NULL, Calloc initializes all the allocated memory to 0.
-		sds = Calloc(sizeof(SDS) + length + 1);
-	}
+	// One more byte is allocated for the null-terminated byte '\0'.
+	// Malloc does not initialize the memory.
+	// Calloc initializes all the allocated memory to 0.
+	SDS *sds = ((string == NULL) ?
+	            Calloc(CAST(int)sizeof(SDS) + length + 1) : Malloc(CAST(int)sizeof(SDS) + length + 1));
 
 	if(sds == NULL) // Allocate memory fail, return NULL.
 	{
@@ -30,17 +23,17 @@ String SDSNewLength(const void *string, size_t length)
 	sds->free_ = 0;
 	if(string != NULL && length != 0)
 	{
-		memcpy(sds->data_, string, length); // Copy string.
+		memcpy(sds->data_, string, CAST(size_t)length); // Copy string.
 	}
 	sds->data_[length] = '\0'; // The string is always null-terminated.
-	return (char*)(sds->data_); // Return the data part of structure.
+	return sds->data_; // Return the data part of structure.
 }
 
 // Create a new SDS string starting from a null terminated C string.
 // O(N)
 String SDSNew(const void *string)
 {
-	size_t length = (string == NULL ? 0 : strlen(string));
+	int length = (string == NULL ? 0 : CAST(int)strlen(string));
 	return SDSNewLength(string, length); // Delegate work to SDSNewLength.
 }
 
@@ -57,7 +50,7 @@ void SDSFree(String string)
 {
 	if(string != NULL) // If string is null, no operation is done.
 	{
-		Free(string - sizeof(SDS));
+		Free(string - CAST(int)sizeof(SDS));
 	}
 }
 
@@ -72,7 +65,7 @@ String SDSDuplicate(const String string)
 // O(1)
 void SDSClear(String string)
 {
-	SDS *sds = (SDS*)(string - sizeof(SDS));
+	SDS *sds = CAST(SDS*)(string - CAST(int)sizeof(SDS));
 	// Update data members.
 	sds->free_ += sds->length_;
 	sds->length_ = 0;
@@ -81,15 +74,15 @@ void SDSClear(String string)
 
 // Guarantee that there is at least free `need` bytes in at the end of the SDS string.
 // O(1)
-String SDSAllocateMemory(String string, size_t need)
+String SDSAllocateMemory(String string, int need)
 {
-	SDS *old_sds = (SDS*)(string - sizeof(SDS));
+	SDS *old_sds = CAST(SDS*)(string - CAST(int)sizeof(SDS));
 	if(old_sds->free_ >= need) // No need to reallocate memory, just return origin SDS.
 	{
 		return string;
 	}
 
-	size_t new_length = old_sds->length_ + need; // The least need new length.
+	int new_length = old_sds->length_ + need; // The least need new length.
 	if(new_length < SDS_MAX_PREALLOC)
 	{
 		new_length *= 2; // Double needed length.
@@ -98,7 +91,7 @@ String SDSAllocateMemory(String string, size_t need)
 	{
 		new_length += SDS_MAX_PREALLOC; // Only allocate more 1MB.
 	}
-	SDS *new_sds = Realloc(old_sds, sizeof(SDS) + new_length + 1);
+	SDS *new_sds = Realloc(old_sds, CAST(int)sizeof(SDS) + new_length + 1);
 	if(new_sds == NULL)
 	{
 		return NULL;
@@ -112,15 +105,15 @@ String SDSAllocateMemory(String string, size_t need)
 // After the call, the passed SDS string is no longer valid and all the
 // references must be substituted with the new pointer returned by the call.
 // O(N)
-String SDSAppendLength(String string, const void *append, size_t length)
+String SDSAppendLength(String string, const void *append, int length)
 {
 	if((string = SDSAllocateMemory(string, length)) == NULL)
 	{
 		return NULL; // Can't allocate need memory.
 	}
 
-	SDS *sds = (SDS*)(string - sizeof(SDS));
-	memcpy(string + sds->length_, append, length); // Append
+	SDS *sds = CAST(SDS*)(string - CAST(int)sizeof(SDS));
+	memcpy(string + sds->length_, append, CAST(size_t)length); // Append
 	// Update data members.
 	sds->length_ += length;
 	sds->free_ -= length;
@@ -134,7 +127,7 @@ String SDSAppendLength(String string, const void *append, size_t length)
 // O(N)
 String SDSAppend(String string, const char *append)
 {
-	return SDSAppendLength(string, append, strlen(append));
+	return SDSAppendLength(string, append, CAST(int)strlen(append));
 }
 
 // Append the specified SDS string `append` to the existing SDS string `string`
@@ -146,10 +139,10 @@ String SDSAppendSDS(String string, const String append)
 
 // Destructively modify the SDS string `string` to hold the string `copy` of `need` bytes.
 // O(N)
-String SDSCopyLength(String string, const char *copy, size_t need)
+String SDSCopyLength(String string, const char *copy, int need)
 {
-	SDS *sds = (SDS*)(string - sizeof(SDS)); // Get structure.
-	size_t total_length = sds->length_ + sds->free_;
+	SDS *sds = CAST(SDS*)(string - CAST(int)sizeof(SDS)); // Get structure.
+	int total_length = sds->length_ + sds->free_;
 	if(total_length < need) // Current memory is not enough.
 	{
 		// Try to allocate more memory.
@@ -158,10 +151,10 @@ String SDSCopyLength(String string, const char *copy, size_t need)
 			return NULL;
 		}
 		// Update the new structure.
-		sds = (SDS*)(string - sizeof(SDS));
+		sds = CAST(SDS*)(string - CAST(int)sizeof(SDS));
 		total_length = sds->length_ + sds->free_;
 	}
-	memcpy(string, copy, need); // Copy `copy` to `string`
+	memcpy(string, copy, CAST(size_t)need); // Copy `copy` to `string`
 	string[need] = '\0'; // Always end with null byte.
 	sds->length_ = need; // Update data members.
 	sds->free_ = total_length - sds->length_;
@@ -172,16 +165,16 @@ String SDSCopyLength(String string, const char *copy, size_t need)
 // O(N)
 String SDSCopy(String string, const char *copy)
 {
-	return SDSCopyLength(string, copy, strlen(copy));
+	return SDSCopyLength(string, copy, CAST(int)strlen(copy));
 }
 
 // Grow the SDS string to have the specified length and fill the added bytes with null.
 // If the specified length is smaller than the current length, no operation is performed.
 // O(N)
-String SDSGrowWithNull(String string, size_t new_length)
+String SDSGrowWithNull(String string, int new_length)
 {
-	SDS *sds = (SDS*)(string - sizeof(SDS));
-	size_t old_length = sds->length_;
+	SDS *sds = CAST(SDS*)(string - CAST(int)sizeof(SDS));
+	int old_length = sds->length_;
 	if(old_length > new_length) // Don't shrink string.
 	{
 		return string;
@@ -191,9 +184,9 @@ String SDSGrowWithNull(String string, size_t new_length)
 	{
 		return NULL;
 	}
-	sds = (SDS*)(string - sizeof(SDS));
+	sds = CAST(SDS*)(string - CAST(int)sizeof(SDS));
 	// Fill added bytes with null '\0'; always end with one more null byte.
-	memset(string + old_length, 0, new_length - old_length + 1);
+	memset(string + old_length, 0, CAST(size_t)new_length - CAST(size_t)old_length + 1);
 	sds->free_ = old_length + sds->free_ - new_length; // old_length remain unchanged.
 	sds->length_ = new_length;
 	return string;
@@ -204,8 +197,8 @@ String SDSGrowWithNull(String string, size_t new_length)
 // O(N)
 void SDSRange(String string, int begin, int end)
 {
-	SDS *sds = (SDS*)(string - sizeof(SDS));
-	int old_length = sds->length_;
+	SDS *sds = CAST(SDS*)(string - CAST(int)sizeof(SDS));
+	int old_length = (sds->length_);
 	if(old_length == 0) // No content to move.
 	{
 		return;
@@ -215,11 +208,12 @@ void SDSRange(String string, int begin, int end)
 	                  begin < end) ? end - begin + 1: 0; // Get the new length.
 	if(begin > 0 && new_length > 0) // The range is legal and we need to move.
 	{
-		memmove(sds->data_, sds->data_ + begin, new_length);
+		// void *memmove(void *dest, const void *src, int n);
+		memmove(sds->data_, sds->data_ + begin, CAST(size_t)new_length);
 	}
 	sds->data_[new_length] = '\0';
 	sds->length_ = new_length;
-	sds->free_ += old_length - new_length;
+	sds->free_ = sds->free_ + old_length - new_length;
 }
 
 // Remove the part of the string from left and from right composed just of
@@ -231,30 +225,31 @@ String SDSTrim(String string, const char *set)
 {
 	// Define a map: key is the character, and value(0/!0) indicate
 	// whether corresponding character is in set.
-	int map_size = (1 << (sizeof(char) * 8)) + 10;
+	int map_size = (1 << (CAST(int)sizeof(char) * 8)) + 10;
 	char map[map_size];
-	memset(map, 0, map_size);
+	// void *memset(void *s, int c, int n);
+	memset(map, 0, CAST(size_t)map_size);
 	for(const char *key = set; *key != 0; ++key)
 	{
-		map[*key] = 1;
+		map[CAST(int)*key] = 1;
 	}
-	SDS *sds = (SDS*)(string - sizeof(SDS));
+	SDS *sds = CAST(SDS*)(string - CAST(int)sizeof(SDS));
 	char *start = string, *end = string + sds->length_ - 1;
-	while(start <= string + sds->length_ - 1 && map[*start] != 0) // O(N).
+	while(start <= string + sds->length_ - 1 && map[CAST(int)*start] != 0) // O(N).
 	{
 		++start;
 	}
-	while(end >= string && map[*end] != 0) // O(N)
+	while(end >= string && map[CAST(int)*end] != 0) // O(N)
 	{
 		--end;
 	}
-	int new_length = (start > end) ? 0 : (end - start + 1);
+	int new_length = (start > end) ? 0 : CAST(int)(end - start) + 1;
 	if(sds->data_ != start) // Need to move content.
 	{
-		memmove(sds->data_, start, new_length);
+		memmove(sds->data_, start, CAST(size_t)new_length);
 	}
 	sds->data_[new_length] = '\0';
-	sds->free_ += sds->length_ - new_length; // Update data members.
+	sds->free_ += (sds->length_) - (new_length); // Update data members.
 	sds->length_ = new_length;
 	return string;
 }
@@ -265,9 +260,9 @@ String SDSTrim(String string, const char *set)
 // O(N)
 int SDSCompare(const String string1, const String string2)
 {
-	size_t length1 = get_length(string1), length2 = get_length(string2);
-	size_t min_length = (length1 < length2) ? length1 : length2;
-	int result = memcmp(string1, string2, min_length);
+	int length1 = get_length(string1), length2 = get_length(string2);
+	int min_length = (length1 < length2) ? length1 : length2;
+	int result = memcmp(string1, string2, CAST(size_t)min_length);
 	if(result == 0)
 	{
 		return length1 - length2;
